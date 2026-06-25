@@ -1,0 +1,3 @@
+# Campaign Actions (§5) live here. Empty for now — added in a later phase.
+# Planned: init.yml (A), claim.yml (B), submit.yml (C), state is folded into
+# B/C (D), reaper.yml (E, scheduled).

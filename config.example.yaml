@@ -1,0 +1,90 @@
+# =============================================================================
+# Let's Encode! — campaign configuration  (schema v1)
+# =============================================================================
+# This file is the single source of truth for how a campaign is divided into
+# work. It is authored once, during instigation: the instigation GUI copies
+# this example to `config.yaml`, fills in the placeholders, and commits it.
+# That commit triggers the initialisation Action (§5 A), which reads this file
+# and writes tracking/state.csv and tracking/locks.csv.
+#
+# Volunteers and organisers never edit this file (or the tables) by hand on
+# GitHub — everything is mediated by the instigation platform and the
+# volunteer client. The file is YAML so it stays small, reviewable and
+# diffable.
+#
+# Fields below are the implemented v1 set. Lines marked "(reserved)" document
+# where the schema is expected to grow; they are NOT yet read by any Action.
+# -----------------------------------------------------------------------------
+
+# Tells the init Action which schema rules to apply. Bump only on a
+# breaking change to the format.
+schema_version: 1
+
+# --- Campaign identity -------------------------------------------------------
+# Human-facing metadata. Fields tagged (→ MEI header) are also copied into the
+# generated MEI file's <meiHead> at initialisation, so the encoded score
+# carries its own provenance.
+campaign:
+  title: "REPLACE ME — campaign title"        # (→ MEI header / title)
+  description: "One or two sentences describing the campaign."
+  instigator: "github-login"                  # GitHub login of the organiser
+  language: "en"                              # BCP-47 code; default UI language
+  license: "CC-BY-4.0"                        # (→ MEI header / availability)
+
+# --- Sources -----------------------------------------------------------------
+# Where the score material comes from. v1 implements exactly ONE source whose
+# `kind` is `mei-template`: a barebones MEI file stamped from
+# templates/score.template.mei, with its header completed from the `campaign`
+# block (plus the per-source `header` overrides below) and a single default
+# measure containing one note.
+#
+# Other source kinds are reserved for later, when material arrives in other
+# shapes (see the design note):
+#   - iiif          : reference page images via a IIIF manifest
+#   - image-urls    : reference page images by plain URL or local path
+#   - existing-mei   : import an existing, partial MEI file to be corrected
+#   - omr           : images to be run through OMR before encoding
+sources:
+  - id: src-1
+    kind: mei-template                        # v1: only 'mei-template' is implemented
+    path: sources/score.mei                   # where the init Action writes the file
+    template: templates/score.template.mei    # stamped from this; header filled in
+    header:                                    # filled during instigation
+      composer: ""                            # (→ MEI header / composer)
+      # respStmt, pubStmt, sourceDesc, encodingDesc ... (reserved)
+
+# --- Fragmentation -----------------------------------------------------------
+# How the score is divided into individual encoding tasks. v1 implements the
+# simplest strategy, `whole`: the entire MEI file is one task. This is exactly
+# what the one-note test case needs.
+#
+# Reserved strategies (not yet implemented):
+#   by_measure: { per_task: 4 }      # N measures per task
+#   by_section: true                 # one task per <section>
+#   parts:                           # extract individual parts and farm them
+#     extract: false                 #   out as their own task collections
+fragmentation:
+  strategy: whole                             # v1: 'whole' only
+
+# --- Validation --------------------------------------------------------------
+# IMPORTANT: validation here means human peer review — a SEPARATE step from
+# encoding, ideally done by several different people, and possibly fragmented
+# differently from the encoding tasks. It is NOT the machine check.
+#
+# Machine checks (well-formed XML + MEI schema validity) always run on every
+# submission and are not configured here; they gate a submission but do not
+# count as a "validation".
+#
+# The instigator decides how much and how strictly material is validated:
+validation:
+  required_validations: 1                     # number of validation cells (v1…vn) per task
+  pass_threshold: 1                           # how many 'pass' outcomes mark a task 'completed'
+  # rubric: "..."                             # (reserved) review checklist shown to validators
+  # strictness: normal                        # (reserved) e.g. lenient | normal | strict
+  # separate_fragmentation: false             # (reserved) validate on a different task split
+
+# --- Locking -----------------------------------------------------------------
+# A claimed task is reserved in tracking/locks.csv. Abandoned claims are
+# released automatically by the stale-lock reaper (§5 E) after this timeout.
+locking:
+  stale_after_minutes: 120
