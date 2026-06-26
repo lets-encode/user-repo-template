@@ -1,0 +1,48 @@
+name: Claim task (Action B)
+
+# A volunteer claims a task by opening a PR (from their fork) that adds one row
+# to tracking/locks.csv. This thin caller runs the central claim logic; all the
+# real code lives in the central automation repo and is checked out at the `ref`
+# below. pull_request_target runs in THIS repo's context (write token) and uses
+# the workflow + central code from the trusted side — the fork's PR is only ever
+# read as data, never executed.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    paths:
+      - tracking/locks.csv
+
+# Serialise claim runs so two claims can't be applied concurrently (belt-and-
+# braces alongside the script's optimistic-concurrency retry).
+concurrency:
+  group: claim-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  claim:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out central automation code
+        uses: actions/checkout@v4
+        with:
+          repository: lets-encode/instigation # central repo (for now)
+          # ⚠️ BEFORE PRODUCTION: pin `ref` to an immutable tag/SHA, not the
+          # moving `main` branch (every push to main instantly changes what all
+          # live campaigns run). Tracked in the central repo's
+          # the central repo's DESIGN.md hardening checklist. `main` = iteration only.
+          ref: main
+          path: central
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Decide and apply the claim
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: node central/scripts/claim.mjs

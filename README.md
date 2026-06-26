@@ -41,6 +41,5 @@ requests, which Actions validate and merge while keeping the tables current.
 
 `config.yaml` is YAML; `state.csv` and `locks.csv` are CSV (chosen for clean,
 cell-level pull-request diffs and trivial machine parsing). The schema, the
-column meanings, and the validation-cell encoding are specified in the design
-note that accompanies this template (`DESIGN-config-and-formats.md` in the
-`instigation` repo).
+column meanings, and the validation-cell encoding are specified in `DESIGN.md`
+in the `instigation` repo (the single design + status document for the project).
