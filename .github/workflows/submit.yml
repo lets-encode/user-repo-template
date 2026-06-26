@@ -1,0 +1,53 @@
+name: Submit work (Action C)
+
+# A volunteer submits work by opening a PR (from their fork): an ENCODING PR
+# edits the task's score fragment (sources/…), or a VALIDATION PR records a
+# pass/fail by editing tracking/state.csv. This thin caller runs the central
+# submission logic; all the real code lives in the central automation repo and
+# is checked out at the `ref` below. pull_request_target runs in THIS repo's
+# context (write token) and uses the workflow + central code from the trusted
+# side — the fork's PR is only ever read as data, never executed.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    paths:
+      - sources/**
+      - tracking/state.csv
+
+# Serialise submission runs (belt-and-braces alongside the script's
+# optimistic-concurrency retry).
+concurrency:
+  group: submit-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out central automation code
+        uses: actions/checkout@v4
+        with:
+          repository: lets-encode/instigation # central repo (for now)
+          # ⚠️ BEFORE PRODUCTION: pin `ref` to an immutable tag/SHA, not the
+          # moving `main` branch. See the central repo's DESIGN.md hardening
+          # checklist. `main` = iteration only.
+          ref: main
+          path: central
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Ensure xmllint is available (MEI well-formedness check)
+        run: sudo apt-get install -y libxml2-utils
+      - name: Decide and apply the submission
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node central/scripts/submit.mjs

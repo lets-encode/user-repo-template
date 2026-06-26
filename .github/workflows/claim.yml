@@ -32,8 +32,8 @@ jobs:
           repository: lets-encode/instigation # central repo (for now)
           # ⚠️ BEFORE PRODUCTION: pin `ref` to an immutable tag/SHA, not the
           # moving `main` branch (every push to main instantly changes what all
-          # live campaigns run). Tracked in the central repo's
-          # the central repo's DESIGN.md hardening checklist. `main` = iteration only.
+          # live campaigns run). Tracked in the central repo's DESIGN.md
+          # hardening checklist. `main` = iteration only.
           ref: main
           path: central
       - uses: actions/setup-node@v4
