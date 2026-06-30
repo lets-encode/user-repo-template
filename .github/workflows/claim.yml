@@ -35,7 +35,7 @@ jobs:
           path: central
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Decide and apply the claim
         env:
           GH_TOKEN: ${{ github.token }}

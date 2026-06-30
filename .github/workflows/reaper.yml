@@ -32,7 +32,7 @@ jobs:
           path: central
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Release stale locks
         env:
           GH_TOKEN: ${{ github.token }}
