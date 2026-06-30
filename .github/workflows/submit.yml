@@ -1,12 +1,10 @@
-name: Submit work (Action C)
+name: Submit work
 
-# A volunteer submits work by opening a PR (from their fork): an ENCODING PR
-# edits the task's score fragment (sources/…), or a VALIDATION PR records a
-# pass/fail by editing tracking/state.csv. This thin caller runs the central
-# submission logic; all the real code lives in the central automation repo and
-# is checked out at the `ref` below. pull_request_target runs in THIS repo's
-# context (write token) and uses the workflow + central code from the trusted
-# side — the fork's PR is only ever read as data, never executed.
+# Thin caller — the submission logic lives in the central automation repo,
+# checked out at the `ref` below. An ENCODING PR edits the task's score fragment
+# (sources/…); a VALIDATION PR records a pass/fail in tracking/state.csv.
+# pull_request_target runs in THIS repo's context (write token); the fork's PR
+# is only ever read as data, never executed.
 on:
   pull_request_target:
     types: [opened, reopened, synchronize]
@@ -50,4 +48,5 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: node central/scripts/submit.mjs

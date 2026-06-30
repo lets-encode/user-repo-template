@@ -1,4 +1,4 @@
-name: Release stale locks (Action E)
+name: Release stale locks
 
 # Scheduled reaper: clears locks older than locking.stale_after_minutes (from
 # config.yaml), returning abandoned tasks to the pool. Cron timing is coarse and
