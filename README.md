@@ -20,9 +20,12 @@ sources/
   score.mei                  # written at init from the template below (not in the template)
 templates/
   score.template.mei         # barebones MEI: 1 measure, 1 note, header placeholders
-tracking/
-  state.csv                  # state table — generated & maintained by Actions
-  locks.csv                  # lock table — generated & maintained by Actions
+tracking/                    # four tables keyed by (task_id, subtask_id) —
+  task.csv                   #   task/subtask definitions (fragment, locator, gates)
+  state.csv                  #   live status + validation cells
+  lock.csv                   #   active claims
+  history.csv                #   append-only log of every action, incl. rejects
+                             # generated at init & maintained by the automation
 .github/workflows/
   caller.yml                 # the ONE task-agnostic caller — forwards every event
                              # to the central automation named in config.yaml
@@ -33,15 +36,16 @@ tracking/
 The instigation GUI generates a campaign repo from this template, then commits —
 in one go — a filled-in `config.yaml` (shaped like `config.example.yaml`),
 `sources/score.mei` stamped from `templates/score.template.mei` (header filled
-from the config), `tracking/state.csv` (every task `encoding_required`) and a
-header-only `tracking/locks.csv`. From there, volunteers claim and submit work
+from the config), and the four tracking tables (tasks `encoding_required`,
+their validation subtasks `pending`, empty lock and history tables). From
+there, volunteers claim and submit work
 as pull requests; on each one `caller.yml` checks out the central automation
 repo named in `config.yaml` and runs it, and that coordinator validates the
 contribution, mutates the tables, and closes or merges the PR.
 
 ## File formats
 
-`config.yaml` is YAML; `state.csv` and `locks.csv` are CSV (chosen for clean,
+`config.yaml` is YAML; the tracking tables are CSV (chosen for clean,
 cell-level pull-request diffs and trivial machine parsing). The schema, the
 column meanings, and the validation-cell encoding are specified in `DESIGN.md`
 in the `instigation` repo (the single design + status document for the project).

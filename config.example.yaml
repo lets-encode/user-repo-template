@@ -1,12 +1,12 @@
 # =============================================================================
-# Let's Encode! — campaign configuration  (schema v1)
+# Let's Encode! — campaign configuration  (schema v2)
 # =============================================================================
-# Fields below are the implemented v1 set. Lines marked "(reserved)" document
+# Fields below are the implemented set. Lines marked "(reserved)" document
 # where the schema is expected to grow; they are NOT yet read by any Action.
 # -----------------------------------------------------------------------------
 
 # Schema version. Bump only on a breaking change to the format.
-schema_version: 1
+schema_version: 2
 
 # --- Campaign identity -------------------------------------------------------
 # Human-facing metadata. Fields tagged (→ MEI header) are also copied into the
@@ -29,7 +29,7 @@ automation:
   path: "scripts/coordinator.ts"                # entry point within that repository
 
 # --- Sources -----------------------------------------------------------------
-# Where the score material comes from. v1 implements exactly ONE source whose
+# Where the score material comes from. Exactly ONE source is implemented, whose
 # `kind` is `mei-template`.
 #
 # Other source kinds are reserved for later:
@@ -39,7 +39,7 @@ automation:
 #   - omr           : images to be run through OMR before encoding
 sources:
   - id: src-1
-    kind: mei-template                        # v1: only 'mei-template' is implemented
+    kind: mei-template                        # only 'mei-template' is implemented
     path: sources/score.mei                   # output path of the score file
     template: templates/score.template.mei    # MEI template for this source
     header:                                    # per-source MEI header fields
@@ -47,8 +47,9 @@ sources:
       # respStmt, pubStmt, sourceDesc, encodingDesc ... (reserved)
 
 # --- Fragmentation -----------------------------------------------------------
-# How the score is divided into individual encoding tasks. v1 implements the
-# simplest strategy, `whole`: the entire MEI file is one task.
+# How the score is divided into individual encoding tasks. Only the simplest
+# strategy is implemented, `whole`: the entire MEI file is one task with one
+# validation subtask.
 #
 # Reserved strategies (not yet implemented):
 #   by_measure: { per_task: 4 }      # N measures per task
@@ -56,7 +57,7 @@ sources:
 #   parts:                           # extract individual parts and farm them
 #     extract: false                 #   out as their own task collections
 fragmentation:
-  strategy: whole                             # v1: 'whole' only
+  strategy: whole                             # only 'whole' is implemented
 
 # --- Validation --------------------------------------------------------------
 # IMPORTANT: validation here means human peer review — a SEPARATE step from
@@ -69,14 +70,14 @@ fragmentation:
 #
 # The instigator decides how much and how strictly material is validated:
 validation:
-  required_validations: 1                     # number of validation cells (v1…vn) per task
-  pass_threshold: 1                           # how many 'pass' outcomes mark a task 'completed'
+  required_validations: 1                     # validation cells (validate_status_1…n) per subtask
+  pass_threshold: 1                           # how many 'pass' outcomes complete a subtask
   # rubric: "..."                             # (reserved) review checklist shown to validators
   # strictness: normal                        # (reserved) e.g. lenient | normal | strict
   # separate_fragmentation: false             # (reserved) validate on a different task split
 
 # --- Locking -----------------------------------------------------------------
-# A claimed task is reserved in tracking/locks.csv. Abandoned claims are
-# released automatically by the stale-lock reaper (§5 E) after this timeout.
+# A claimed task or subtask is reserved in tracking/lock.csv. Abandoned claims
+# are released automatically by the stale-lock reaper after this timeout.
 locking:
   stale_after_minutes: 120
