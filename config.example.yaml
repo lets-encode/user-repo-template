@@ -18,6 +18,16 @@ campaign:
   language: "en"                              # BCP-47 code; default UI language
   license: "CC-BY-4.0"                        # (→ MEI header / availability)
 
+# --- Automation --------------------------------------------------------------
+# Where the campaign's coordination logic lives. The generic caller workflow
+# (.github/workflows/caller.yml) reads this block from the BASE branch on every
+# run, checks out that repository at `ref`, and runs `path`. Upgrading a live
+# campaign is a one-line edit of `ref`.
+automation:
+  central_repository: "lets-encode/instigation" # owner/repo of the central automation code
+  ref: "main"                                   # ⚠️ pin to an immutable tag/SHA before production
+  path: "scripts/coordinator.ts"                # entry point within that repository
+
 # --- Sources -----------------------------------------------------------------
 # Where the score material comes from. v1 implements exactly ONE source whose
 # `kind` is `mei-template`.

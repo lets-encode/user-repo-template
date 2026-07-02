@@ -3,8 +3,8 @@
 This is the **template repository** every campaign is stamped from (via GitHub's
 "create a repository from a template"). A copy of it becomes one crowd-encoding
 campaign: it holds the score sources, the campaign configuration, two
-machine-maintained tracking tables, and the GitHub Actions that run the
-workflow.
+machine-maintained tracking tables, and one generic caller workflow that runs
+the campaign automation.
 
 > You normally don't touch these files by hand. The instigation platform fills
 > in the configuration at campaign start, and the volunteer client claims and
@@ -23,19 +23,21 @@ templates/
 tracking/
   state.csv                  # state table — generated & maintained by Actions
   locks.csv                  # lock table — generated & maintained by Actions
-.github/workflows/           # campaign Actions (added in a later phase)
+.github/workflows/
+  caller.yml                 # the ONE task-agnostic caller — forwards every event
+                             # to the central automation named in config.yaml
 ```
 
 ## Lifecycle in one paragraph
 
-The instigation GUI generates a campaign repo from this template, then commits a
-filled-in `config.yaml` (copied from `config.example.yaml`) and places/refers to
-the score sources. That commit triggers the **initialisation Action**, which
-stamps `templates/score.template.mei` into `sources/score.mei` (filling the
-header from the config), fragments the score into tasks, and writes
-`tracking/state.csv` (every task `encoding_required`) and an empty
-`tracking/locks.csv`. From there, volunteers claim and submit work as pull
-requests, which Actions validate and merge while keeping the tables current.
+The instigation GUI generates a campaign repo from this template, then commits —
+in one go — a filled-in `config.yaml` (shaped like `config.example.yaml`),
+`sources/score.mei` stamped from `templates/score.template.mei` (header filled
+from the config), `tracking/state.csv` (every task `encoding_required`) and a
+header-only `tracking/locks.csv`. From there, volunteers claim and submit work
+as pull requests; on each one `caller.yml` checks out the central automation
+repo named in `config.yaml` and runs it, and that coordinator validates the
+contribution, mutates the tables, and closes or merges the PR.
 
 ## File formats
 
