@@ -25,7 +25,7 @@ campaign:
 # campaign is a one-line edit of `ref`.
 automation:
   central_repository: "lets-encode/instigation" # owner/repo of the central automation code
-  ref: "main"                                   # ⚠️ pin to an immutable tag/SHA before production
+  ref: "main"                                   # pin to a commit SHA for production releases
   path: "scripts/coordinator.ts"                # entry point within that repository
 
 # --- Sources -----------------------------------------------------------------

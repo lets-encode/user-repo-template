@@ -15,7 +15,7 @@ on:
       - tracking/**
       - sources/**
   schedule:
-    - cron: '*/15 * * * *' # stale-lock reaper; coarse timing is fine (the logic compares elapsed time)
+    - cron: '0 * * * *' # fallback cleanup; claims also reap expired locks lazily
   workflow_dispatch: {} # manual reaper run (e.g. from the campaign console)
 
 # Serialise runs so two events can't be applied concurrently (belt-and-braces
@@ -23,6 +23,7 @@ on:
 concurrency:
   group: campaign-${{ github.repository }}
   cancel-in-progress: false
+  queue: max
 
 permissions:
   contents: write
@@ -30,10 +31,10 @@ permissions:
 
 jobs:
   run:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out the campaign repo (base tree only — never the fork head)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       # The central pointer comes from config.yaml on the base ref — a fork PR
       # cannot redirect where central lives. `path:` also appears under
@@ -57,16 +58,13 @@ jobs:
 
       - name: Check out the central automation code
         if: steps.cfg.outputs.repo != ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: ${{ steps.cfg.outputs.repo }}
-          # ⚠️ BEFORE PRODUCTION: `automation.ref` in config.yaml must be an
-          # immutable tag/SHA, not a moving branch. See the central repo's
-          # DESIGN.md hardening checklist.
           ref: ${{ steps.cfg.outputs.ref }}
           path: central
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: steps.cfg.outputs.repo != ''
         with:
           node-version: 24 # runs the central TypeScript directly (type stripping)
