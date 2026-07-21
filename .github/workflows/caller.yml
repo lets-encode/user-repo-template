@@ -78,10 +78,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_REPO: ${{ github.repository }}
+          # Stable numeric repo id — the canonical, rename-stable reference.
+          BASE_REPO_ID: ${{ github.repository_id }}
           EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          # Numeric account id is the identity written to the tracking tables;
+          # the login rides alongside for human-readable commit messages only.
+          PR_AUTHOR: ${{ github.event.pull_request.user.id }}
+          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_REPO_ID: ${{ github.event.pull_request.head.repo.id }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: node central/${{ steps.cfg.outputs.path }}
