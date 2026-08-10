@@ -85,7 +85,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: steps.cfg.outputs.repo != ''
         with:
-          node-version: 24 # runs the central TypeScript directly (type stripping)
+          node-version: 22 # ≥22.18 runs the central TypeScript directly (type stripping)
 
       # `ps -p` rather than `kill -0`: the installer runs under sudo, so a
       # signal from this unprivileged step would be refused while it still runs.
