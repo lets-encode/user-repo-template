@@ -33,11 +33,26 @@ jobs:
   run:
     runs-on: ubuntu-24.04
     steps:
-      # Started first and reaped just before the coordinator runs, so the dpkg
-      # work overlaps the checkout/setup steps below. Only encoding submissions
-      # use xmllint, and only pull_request_target events can carry one.
-      - name: Start installing xmllint in the background (MEI machine-check)
+      # Only encoding submissions use xmllint, and only pull_request_target
+      # events can carry one. The binary is cached keyed on the runner image
+      # (ImageOS/ImageVersion), so most runs skip apt entirely; on a miss the
+      # install is started here and reaped just before the coordinator runs, so
+      # the dpkg work overlaps the checkout/setup steps below.
+      - name: Compute the xmllint cache key (MEI machine-check)
         if: github.event_name == 'pull_request_target'
+        id: xmllint-key
+        run: echo "key=xmllint-$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the cached xmllint binary (MEI machine-check)
+        if: github.event_name == 'pull_request_target'
+        id: xmllint-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: /tmp/xmllint-bin
+          key: ${{ steps.xmllint-key.outputs.key }}
+
+      - name: Start installing xmllint in the background (MEI machine-check)
+        if: github.event_name == 'pull_request_target' && steps.xmllint-cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get install -y --no-install-recommends libxml2-utils \
             > /tmp/xmllint-install.log 2>&1 &
@@ -87,14 +102,33 @@ jobs:
         with:
           node-version: 22 # ≥22.18 runs the central TypeScript directly (type stripping)
 
+      # Cache hit: put the cached binary on the PATH (the runner image already
+      # carries libxml2, xmllint's only shared-library dependency beyond the
+      # base system; the cache key ties the binary to one image). Cache miss:
+      # reap the background install and keep its binary for the save step.
       # `ps -p` rather than `kill -0`: the installer runs under sudo, so a
       # signal from this unprivileged step would be refused while it still runs.
-      - name: Wait for the xmllint install to finish (MEI machine-check)
+      - name: Set up xmllint (MEI machine-check)
         if: github.event_name == 'pull_request_target' && steps.cfg.outputs.repo != ''
         run: |
-          while ps -p "$(cat /tmp/xmllint-install.pid)" > /dev/null 2>&1; do sleep 0.2; done
-          cat /tmp/xmllint-install.log
-          command -v xmllint
+          if [ "${{ steps.xmllint-cache.outputs.cache-hit }}" = "true" ]; then
+            sudo install -m 0755 /tmp/xmllint-bin/xmllint /usr/local/bin/xmllint
+          else
+            while ps -p "$(cat /tmp/xmllint-install.pid)" > /dev/null 2>&1; do sleep 0.2; done
+            cat /tmp/xmllint-install.log
+            mkdir -p /tmp/xmllint-bin
+            cp "$(command -v xmllint)" /tmp/xmllint-bin/xmllint
+          fi
+          xmllint --version
+
+      # Saved before the coordinator runs, so a rejected submission (a failing
+      # run) still fills the cache. Skipped when the binary came from the cache.
+      - name: Save the xmllint binary to the cache (MEI machine-check)
+        if: github.event_name == 'pull_request_target' && steps.cfg.outputs.repo != '' && steps.xmllint-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: /tmp/xmllint-bin
+          key: ${{ steps.xmllint-key.outputs.key }}
 
       - name: Run the central coordinator
         if: steps.cfg.outputs.repo != ''
