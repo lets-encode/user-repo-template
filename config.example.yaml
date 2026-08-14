@@ -90,6 +90,8 @@ fragmentation:
 validation:
   required_validations: 1                     # validation cells (validate_status_1…n) per subtask
   pass_threshold: 1                           # how many 'pass' outcomes complete a subtask
+  # allow_self_validation: true               # development/test campaigns only: lifts the
+  #                                           # no-self-validation and one-verdict-per-person rules
 
 # --- Locking -----------------------------------------------------------------
 # A claimed task or subtask is reserved in tracking/lock.csv. Abandoned claims
