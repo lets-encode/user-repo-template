@@ -87,8 +87,10 @@ jobs:
       # repo is needed on disk, so there is no base checkout. `path:` also
       # appears under `sources:`, so the reads are scoped to the `automation:`
       # block. config.yaml is committed by campaign initialisation; before that
-      # (e.g. a scheduled run on a freshly generated repo) it is missing (404),
-      # all outputs are empty and the remaining steps no-op. Any other API
+      # it is missing (404): a scheduled or dispatched run (e.g. on a freshly
+      # generated repo) no-ops with empty outputs, while a pull_request_target
+      # run fails loudly — the PR cannot be processed, and a failed run is what
+      # the console's watch surfaces instead of timing out. Any other API
       # failure fails the run rather than silently doing nothing.
       - name: Read the central automation pointer from config.yaml
         id: cfg
@@ -99,6 +101,10 @@ jobs:
                -H "Accept: application/vnd.github.raw" > config.yaml 2> gh-error.txt; then
             cat gh-error.txt >&2
             grep -q 'HTTP 404' gh-error.txt || exit 1
+            if [ "$GITHUB_EVENT_NAME" = "pull_request_target" ]; then
+              echo "config.yaml is missing from the base branch — the campaign is not initialised, so this pull request cannot be processed." >&2
+              exit 1
+            fi
             : > config.yaml
           fi
           read_automation() {
