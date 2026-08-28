@@ -3,6 +3,10 @@
 All notable changes to the user-repo-template. Commit hashes are given in
 parentheses.
 
+## 0.4.3
+
+- Added this changelog, reconstructed from the full git history.
+
 ## 0.4.2
 
 - Updated the caller workflow and the config example. (`62b3bed`, `c40b9b0`)
