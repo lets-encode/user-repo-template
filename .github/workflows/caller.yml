@@ -11,7 +11,7 @@ name: Campaign automation
 # read as data, never executed.
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - tracking/**
       - sources/**
@@ -19,10 +19,14 @@ on:
     - cron: '0 * * * *' # fallback cleanup; claims also reap expired locks lazily
   workflow_dispatch: {} # manual reaper run (e.g. from the campaign console)
 
-# Serialise runs so two events can't be applied concurrently (belt-and-braces
-# alongside the coordinator's optimistic-concurrency retry).
+# One concurrency group per pull request. Within a group GitHub runs one run at
+# a time and keeps one pending: a push to a PR whose run is under way waits for
+# it to finish; a further push replaces the pending run. Runs for different PRs
+# never wait on each other — ordering between them is the coordinator's
+# optimistic concurrency (read the branch head, commit on that parent, retry
+# when it moved). Scheduled and dispatched runs share a group of their own.
 concurrency:
-  group: campaign-${{ github.repository }}
+  group: ${{ github.event_name == 'pull_request_target' && format('campaign-{0}-pr-{1}', github.repository, github.event.pull_request.number) || format('campaign-{0}-maintenance', github.repository) }}
   cancel-in-progress: false
 
 permissions:
@@ -31,56 +35,16 @@ permissions:
 
 jobs:
   run:
+    # Decided from the event alone, before a runner is assigned: a pull request
+    # the console or mei-friend opens changes one file (two for a validation
+    # fail, which carries its comment), is not a draft, and comes from a user
+    # account. Any other pull request gets no run. The console closes its own
+    # such pull request and names these requirements; the coordinator's
+    # scheduled catch-up pass processes oversize ones (closing them with a
+    # rejection) and leaves drafts and non-user pull requests alone.
+    if: github.event_name != 'pull_request_target' || (github.event.pull_request.changed_files <= 2 && github.event.pull_request.draft == false && github.event.pull_request.user.type == 'User')
     runs-on: ubuntu-24.04
     steps:
-      # xmllint backs the MEI machine-check, which only runs on a submitted
-      # encoding — a PR that changes a score under sources/. Claims, validation
-      # verdicts and comments change tracking tables only, so they skip every
-      # xmllint step. The changed paths are read only to decide this; a fork
-      # cannot make them do anything else. The binary is cached keyed on the
-      # runner image (ImageOS/ImageVersion); on a miss the install is started
-      # in the background and reaped just before the coordinator runs, so the
-      # dpkg work overlaps the checkout/setup steps below.
-      #
-      # The cache can only be WRITTEN by runs on the default branch — a
-      # pull_request_target run's cache token is read-only ("cache write
-      # denied"). Scheduled and dispatched runs therefore warm the cache
-      # (warm=true): they install and save the binary even though they never
-      # run the machine-check, so encoding PRs find a hit.
-      - name: Check whether this PR carries an encoding (MEI machine-check)
-        id: xmllint
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = "pull_request_target" ]; then
-            echo "warm=false" >> "$GITHUB_OUTPUT"
-            if gh api "repos/$GITHUB_REPOSITORY/pulls/${{ github.event.pull_request.number }}/files?per_page=100" \
-                 --paginate -q '.[].filename' | grep -q '^sources/'; then
-              echo "needed=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "needed=false" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "warm=true" >> "$GITHUB_OUTPUT"
-            echo "needed=false" >> "$GITHUB_OUTPUT"
-          fi
-          echo "key=xmllint-$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
-
-      - name: Restore the cached xmllint binary (MEI machine-check)
-        if: steps.xmllint.outputs.needed == 'true' || steps.xmllint.outputs.warm == 'true'
-        id: xmllint-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: /tmp/xmllint-bin
-          key: ${{ steps.xmllint.outputs.key }}
-
-      - name: Start installing xmllint in the background (MEI machine-check)
-        if: (steps.xmllint.outputs.needed == 'true' || steps.xmllint.outputs.warm == 'true') && steps.xmllint-cache.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get install -y --no-install-recommends libxml2-utils \
-            > /tmp/xmllint-install.log 2>&1 &
-          echo $! > /tmp/xmllint-install.pid
-
       # The central pointer comes from config.yaml on the base ref — a fork PR
       # cannot redirect where central lives (GITHUB_SHA is the base branch head
       # for pull_request_target). One API read; nothing else in the campaign
@@ -92,6 +56,13 @@ jobs:
       # run fails loudly — the PR cannot be processed, and a failed run is what
       # the console's watch surfaces instead of timing out. Any other API
       # failure fails the run rather than silently doing nothing.
+      #
+      # The three pointer fields are validated against strict patterns before
+      # any step uses them: `central_repository` must be owner/repo, `ref` a
+      # branch, tag or commit name (empty selects the repository's default
+      # branch), and `path` the entry point central ships. A mistyped or
+      # tampered base config.yaml therefore fails the run instead of reaching
+      # a checkout or a command line.
       - name: Read the central automation pointer from config.yaml
         id: cfg
         env:
@@ -114,70 +85,46 @@ jobs:
               in_block && $1 == key ":" { gsub(/"/, "", $2); print $2; exit }
             ' config.yaml 2>/dev/null || true
           }
-          echo "repo=$(read_automation central_repository)" >> "$GITHUB_OUTPUT"
-          echo "ref=$(read_automation ref)" >> "$GITHUB_OUTPUT"
-          echo "path=$(read_automation path)" >> "$GITHUB_OUTPUT"
-          # The runner image's own Node runs the coordinator's TypeScript
-          # directly when it supports type stripping (≥ 22.18); setup-node
-          # below is only the fallback for older images.
-          v=$(node --version); v=${v#v}
-          major=${v%%.*}; rest=${v#*.}; minor=${rest%%.*}
-          if [ "$major" -gt 22 ] || { [ "$major" -eq 22 ] && [ "$minor" -ge 18 ]; }; then
-            echo "node_ok=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "node_ok=false" >> "$GITHUB_OUTPUT"
+          repo=$(read_automation central_repository)
+          ref=$(read_automation ref)
+          path=$(read_automation path)
+          if [ -n "$repo$ref$path" ]; then
+            if ! [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+              echo "config.yaml: automation.central_repository must be owner/repo, got '$repo'." >&2
+              exit 1
+            fi
+            if [ -n "$ref" ] && { ! [[ "$ref" =~ ^[A-Za-z0-9_./-]+$ ]] || [[ "$ref" == *..* ]]; }; then
+              echo "config.yaml: automation.ref must be a branch, tag or commit name, got '$ref'." >&2
+              exit 1
+            fi
+            if [ "$path" != "scripts/coordinator.ts" ]; then
+              echo "config.yaml: automation.path must be scripts/coordinator.ts, got '$path'." >&2
+              exit 1
+            fi
           fi
-          echo "runner node: v$v"
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          # The runner image's own Node runs the coordinator's TypeScript
+          # directly (type stripping, Node 22.18 or later); an older Node fails
+          # the run step with an unknown-extension error.
+          echo "runner node: $(node --version)"
 
       - name: Check out the central automation code
         if: steps.cfg.outputs.repo != ''
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: ${{ steps.cfg.outputs.repo }}
           ref: ${{ steps.cfg.outputs.ref }}
           path: central
 
-      - name: Set up Node for the coordinator
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        if: steps.cfg.outputs.repo != '' && steps.cfg.outputs.node_ok != 'true'
-        with:
-          node-version: 22 # ≥22.18 runs the central TypeScript directly (type stripping)
-
-      # Cache hit: put the cached binary on the PATH (the runner image already
-      # carries libxml2, xmllint's only shared-library dependency beyond the
-      # base system; the cache key ties the binary to one image). Cache miss:
-      # reap the background install and keep its binary for the save step —
-      # on a warm run this staging is the step's whole purpose.
-      # `ps -p` rather than `kill -0`: the installer runs under sudo, so a
-      # signal from this unprivileged step would be refused while it still runs.
-      - name: Set up xmllint (MEI machine-check)
-        if: (steps.xmllint.outputs.needed == 'true' && steps.cfg.outputs.repo != '') || (steps.xmllint.outputs.warm == 'true' && steps.xmllint-cache.outputs.cache-hit != 'true')
-        run: |
-          if [ "${{ steps.xmllint-cache.outputs.cache-hit }}" = "true" ]; then
-            sudo install -m 0755 /tmp/xmllint-bin/xmllint /usr/local/bin/xmllint
-          else
-            while ps -p "$(cat /tmp/xmllint-install.pid)" > /dev/null 2>&1; do sleep 0.2; done
-            cat /tmp/xmllint-install.log
-            mkdir -p /tmp/xmllint-bin
-            cp "$(command -v xmllint)" /tmp/xmllint-bin/xmllint
-          fi
-          xmllint --version
-
-      # Saved before the coordinator runs, so a rejected submission (a failing
-      # run) still fills the cache. Skipped when the binary came from the cache.
-      # Only warm runs (default-branch cache scope) can actually write; on a
-      # pull_request_target run the save is denied and warns — harmless.
-      - name: Save the xmllint binary to the cache (MEI machine-check)
-        if: (steps.xmllint.outputs.needed == 'true' && steps.cfg.outputs.repo != '' || steps.xmllint.outputs.warm == 'true') && steps.xmllint-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: /tmp/xmllint-bin
-          key: ${{ steps.xmllint.outputs.key }}
-
+      # The entry point reaches the shell as an environment variable, quoted,
+      # never expanded into the command line.
       - name: Run the central coordinator
         if: steps.cfg.outputs.repo != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          CENTRAL_PATH: ${{ steps.cfg.outputs.path }}
           BASE_REPO: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -188,4 +135,4 @@ jobs:
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: node central/${{ steps.cfg.outputs.path }}
+        run: node "central/$CENTRAL_PATH"

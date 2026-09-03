@@ -3,6 +3,15 @@
 All notable changes to the user-repo-template. Commit hashes are given in
 parentheses.
 
+## 0.4.4 – 2026-09-03
+
+- Caller: one concurrency group per pull request, so a run is never cancelled because another PR's run is waiting; a push to the same PR waits for its running run and replaces a pending one.
+- Caller: the central pointer read from config.yaml is validated (owner/repo, ref pattern, allowlisted entry point) and passed to the run step as a quoted environment variable.
+- Caller: actions/checkout pinned to v5.1.0 (Node 24); the setup-node fallback is gone — a runner without Node 22.18 fails loudly.
+- Caller: pull requests that change more than two files, are drafts, or come from non-user accounts get no run; the console closes its own such pull request with an explanation, the scheduled catch-up pass closes the rest. A draft marked ready for review now triggers a run.
+- Template score: MEI 5.1 (`meiversion` and the `xml-model` schema reference).
+- Caller: the xmllint install, cache and set-up steps are gone — the MEI machine-check runs inside the coordinator. Three steps remain: read the pointer, check out central, run it.
+
 ## 0.4.3 – 2026-08-28
 
 - Added this changelog, reconstructed from the full git history.

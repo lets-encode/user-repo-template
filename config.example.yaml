@@ -30,7 +30,7 @@ campaign:
 automation:
   central_repository: "lets-encode/instigation" # owner/repo of the central automation code
   ref: "main"                                   # pin to a commit SHA for production releases
-  path: "scripts/coordinator.ts"                # entry point within that repository
+  path: "scripts/coordinator.ts"                # entry point within that repository (the caller accepts only this value)
 
 # --- Source ------------------------------------------------------------------
 # The physical source the pieces were read from: its committed page images
