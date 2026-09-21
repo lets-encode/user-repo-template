@@ -3,6 +3,10 @@
 All notable changes to the user-repo-template. Commit hashes are given in
 parentheses.
 
+## 0.4.5 – 2026-09-21
+
+- README: `sources/<piece-id>/layout.json` documented — the layout model's raw, uncorrected output of an OMR-prepared piece, written with its layout correction.
+
 ## 0.4.4 – 2026-09-03
 
 - Caller: one concurrency group per pull request, so a run is never cancelled because another PR's run is waiting; a push to the same PR waits for its running run and replaces a pending one.

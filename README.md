@@ -19,6 +19,9 @@ config.yaml                  # written at instigation by the GUI (not in the tem
 sources/
   img/                       # the source's committed page images (facsimile campaigns)
   <piece-id>/score.mei       # one MEI per piece, written at init (not in the template)
+  <piece-id>/layout.json     # OMR-prepared pieces: the layout model's raw output per page,
+                             #   written with the layout correction; NOT corrected — the
+                             #   corrected boxes are the zones in score.mei
 templates/
   score.template.mei         # barebones MEI: 1 measure, 1 note, header placeholders
 tracking/                    # five tables keyed by (task_id, subtask_id) —
