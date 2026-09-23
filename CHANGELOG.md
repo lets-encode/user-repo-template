@@ -3,6 +3,10 @@
 All notable changes to the user-repo-template. Commit hashes are given in
 parentheses.
 
+## Unreleased
+
+- history.csv gains a `pr` column naming the pull request each row decides.
+
 ## 0.4.5 – 2026-09-21
 
 - README: `sources/<piece-id>/layout.json` documented — the layout model's raw, uncorrected output of an OMR-prepared piece, written with its layout correction.
