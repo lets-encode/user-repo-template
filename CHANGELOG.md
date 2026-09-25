@@ -5,6 +5,7 @@ parentheses.
 
 ## Unreleased
 
+- README documents `sources/<piece-id>/omr.xml`, the recognition record an OMR piece's score setup writes.
 - history.csv gains a `pr` column naming the pull request each row decides.
 
 ## 0.4.5 – 2026-09-21
